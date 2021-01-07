@@ -11,6 +11,7 @@ type FVec interface {
 	Y() float64
 	Z() float64
 	W() float64
+	Cross(FVec) float64
 }
 
 type fVec struct {
@@ -22,10 +23,17 @@ func NewFVec(degree int, members ...float64) FVec {
 	if degree < 2 {
 		panic("cannot have a 1 member vector")
 	}
+
 	v := fVec{
+		degree:  degree,
 		members: members,
 	}
 	return &v
+}
+
+func NewFVec2(x, y float64) FVec {
+	v := NewFVec(2, x, y)
+	return v
 }
 
 func (f *fVec) Degree() int {
@@ -66,6 +74,7 @@ func (f *fVec) String() string {
 	s.WriteString("[")
 	for d < f.Degree()-1 {
 		s.WriteString(fmt.Sprintf("%.2f, ", f.members[d]))
+		d++
 	}
 	s.WriteString(fmt.Sprintf("%.2f]", f.members[d+1]))
 	return s.String()

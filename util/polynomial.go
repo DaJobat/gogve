@@ -37,7 +37,7 @@ func QuadraticIntersection(p Polynomial, r Polynomial) (p0, p1 FVec) {
 	x1, x2 := Quadratic(np)
 	y1, y2 := small.Calculate(x1), small.Calculate(x2)
 
-	return &fvec2{x1, y1}, &fvec2{x2, y2}
+	return NewFVec(2, x1, y1), NewFVec(2, x2, y2)
 }
 
 func Quadratic(p Polynomial) (result1, result2 float64) {
