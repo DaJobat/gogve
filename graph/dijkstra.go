@@ -1,10 +1,8 @@
-package gogve
+package graph
 
 import (
 	"container/heap"
-	"log"
 	"math"
-	"sort"
 )
 
 type WeightedDigraph interface {
@@ -65,8 +63,8 @@ func initSingleSource(graph DirectedGraph, source Vertex) RelaxableAttributes {
 	return dt
 }
 
-//relax finds the current shortest estimate for an edge. if an edge is changed, returns true
-func relax(graph WeightedDigraph, edge Edge, attrs RelaxableAttributes) bool {
+//Relax finds the current shortest estimate for an edge. if an edge is changed, returns true
+func Relax(graph WeightedDigraph, edge Edge, attrs RelaxableAttributes) bool {
 	fromAttr := attrs[edge.From()]
 	toAttr := attrs[edge.To()]
 	// check if this edge gives us a shorter path than the previous path to
@@ -83,33 +81,33 @@ func relax(graph WeightedDigraph, edge Edge, attrs RelaxableAttributes) bool {
 }
 
 func Dijkstra(graph WeightedDigraph, source Vertex) RelaxableAttributes {
-	log.Print("dijkstra")
 	attrs := initSingleSource(graph, source)
 
 	return dijkstraLoop(graph, attrs, nil)
 }
 
 func dijkstraLoop(graph WeightedDigraph, attributes RelaxableAttributes, breakCondition func(Vertex) bool) RelaxableAttributes {
-	queue := initDijkstraQueue(graph, attributes)
+	queue, vvpm := initDijkstraQueue(graph, attributes)
 	outs := make(RelaxableAttributes)
 
 	for queue.Len() > 0 {
-		nextShortestVertex := heap.Pop(queue).(*VertexPriorityItem).vertex
+		nextShortest := heap.Pop(queue).(*VertexPriorityItem)
 		relaxed := false
-		for _, edge := range graph.Edges()[nextShortestVertex] {
-			relaxed = relax(graph, edge, attributes) || relaxed
-		}
-		if relaxed {
-			sort.Sort(queue) //once we've relaxed an edge, we need to resort the heap. I want a better way of doing this
+		for _, edge := range graph.Edges()[nextShortest.vertex] {
+			relaxed = Relax(graph, edge, attributes) || relaxed
+			heap.Fix(queue, vvpm[edge.To()].index)
 		}
 
-		outs[nextShortestVertex] = attributes[nextShortestVertex]
+		outs[nextShortest.vertex] = attributes[nextShortest.vertex]
 	}
 	return outs
 }
 
-func initDijkstraQueue(graph WeightedDigraph, attrs RelaxableAttributes) *MinPriorityQueue {
+type vertexVPItemMap map[Vertex]*VertexPriorityItem
+
+func initDijkstraQueue(graph WeightedDigraph, attrs RelaxableAttributes) (*MinPriorityQueue, vertexVPItemMap) {
 	queue := make(MinPriorityQueue, len(graph.Vertices()))
+	vvpm := make(vertexVPItemMap)
 	for i, v := range graph.Vertices() {
 		attr := attrs[v].(*DijkstraAttribute)
 		queue[i] = &VertexPriorityItem{
@@ -117,9 +115,11 @@ func initDijkstraQueue(graph WeightedDigraph, attrs RelaxableAttributes) *MinPri
 			index:    i,
 			priority: &attr.ShortestEstimate,
 		}
+
+		vvpm[v] = queue[i]
 	}
 
 	heap.Init(&queue)
 
-	return &queue
+	return &queue, vvpm
 }

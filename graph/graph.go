@@ -1,4 +1,4 @@
-package gogve
+package graph
 
 type DirectedGraph interface {
 	Edges() map[Vertex][]Edge

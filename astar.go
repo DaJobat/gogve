@@ -4,22 +4,24 @@ import (
 	"container/heap"
 	"log"
 	"math"
+
+	"github.com/DaJobat/gogve/graph"
 )
 
 type EstimatedVertex interface {
-	Vertex
-	EstimatedDistance(Vertex) float32
+	graph.Vertex
+	EstimatedDistance(graph.Vertex) float32
 }
 
 type DestinationEstimateAttribute interface {
-	RelaxableAttribute
+	graph.RelaxableAttribute
 	ShortestEstimateToDestination() float32
 	SetShortestEstimateToDestination(float32)
 	TotalCostEstimate() float32
 }
 
 type AStarAttribute struct {
-	*DijkstraAttribute
+	*graph.DijkstraAttribute
 	estDest float32
 }
 
@@ -41,11 +43,11 @@ func (a *AStarAttribute) Distance() int {
 
 type AStarAttributes map[EstimatedVertex]*AStarAttribute
 
-func initAStarSingleSource(graph WeightedDigraph, source, destination EstimatedVertex) AStarAttributes {
+func initAStarSingleSource(wg graph.WeightedDigraph, source, destination EstimatedVertex) AStarAttributes {
 	at := make(AStarAttributes)
-	for _, v := range graph.Vertices() {
+	for _, v := range wg.Vertices() {
 		at[v.(EstimatedVertex)] = &AStarAttribute{
-			DijkstraAttribute: &DijkstraAttribute{
+			DijkstraAttribute: &graph.DijkstraAttribute{
 				ShortestEstimate: float32(math.Inf(1)),
 			},
 			estDest: float32(v.(EstimatedVertex).EstimatedDistance(destination)),
@@ -57,7 +59,7 @@ func initAStarSingleSource(graph WeightedDigraph, source, destination EstimatedV
 	return at
 }
 
-func AStar(graph WeightedDigraph, source, destination EstimatedVertex) AStarAttributes {
+func AStar(wg graph.WeightedDigraph, source, destination EstimatedVertex) AStarAttributes {
 	log.Print("astar")
 	// A Star basically is a mix of dijkstra and BFS.
 	// From BFS we use the concept of an expanding frontier of cells
@@ -70,8 +72,8 @@ func AStar(graph WeightedDigraph, source, destination EstimatedVertex) AStarAttr
 	// if we then used this with Dijkstra's algorithm, we would start far from the source,
 	// and the algorithm would have to path backwards to the source
 
-	attrs := initAStarSingleSource(graph, source, destination)
-	relaxableAttrs := make(RelaxableAttributes)
+	attrs := initAStarSingleSource(wg, source, destination)
+	relaxableAttrs := make(graph.RelaxableAttributes)
 	for v, a := range attrs {
 		relaxableAttrs[v] = a
 	}
@@ -79,26 +81,25 @@ func AStar(graph WeightedDigraph, source, destination EstimatedVertex) AStarAttr
 	// to mirror the estimatedVertex estimates
 
 	outs := make(AStarAttributes)
-	queue := make(MinPriorityQueue, 0)
-	queue = append(queue, &VertexPriorityItem{
-		vertex:   source,
-		index:    0,
-		priority: &attrs[source].DijkstraAttribute.ShortestEstimate,
-	})
+	queue := make(graph.MinPriorityQueue, 0)
+	queue = append(queue, graph.NewVertexPriorityItem(
+		source,
+		&attrs[source].DijkstraAttribute.ShortestEstimate,
+	))
 	heap.Init(&queue)
 
 	for queue.Len() > 0 {
-		current := heap.Pop(&queue).(*VertexPriorityItem).vertex.(EstimatedVertex)
+		current := heap.Pop(&queue).(*graph.VertexPriorityItem).Vertex().(EstimatedVertex)
 		if current == destination {
 			break
 		}
 
-		for _, edge := range graph.Edges()[current] {
-			if relax(graph, edge, relaxableAttrs) {
-				queue.Push(&VertexPriorityItem{
-					vertex:   edge.To(),
-					priority: &attrs[edge.To().(EstimatedVertex)].DijkstraAttribute.ShortestEstimate,
-				})
+		for _, edge := range wg.Edges()[current] {
+			if graph.Relax(wg, edge, relaxableAttrs) {
+				queue.Push(graph.NewVertexPriorityItem(
+					edge.To(),
+					&attrs[edge.To().(EstimatedVertex)].DijkstraAttribute.ShortestEstimate,
+				))
 			}
 		}
 	}

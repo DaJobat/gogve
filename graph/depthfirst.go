@@ -1,4 +1,4 @@
-package gogve
+package graph
 
 import (
 	"fmt"

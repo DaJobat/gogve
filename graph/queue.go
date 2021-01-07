@@ -1,9 +1,23 @@
-package gogve
+package graph
 
 type VertexPriorityItem struct {
 	vertex   Vertex
 	priority *float32
 	index    int
+}
+
+func NewVertexPriorityItem(vertex Vertex, priority *float32) *VertexPriorityItem {
+	vpi := VertexPriorityItem{
+		vertex:   vertex,
+		priority: priority,
+		index:    0,
+	}
+
+	return &vpi
+}
+
+func (i *VertexPriorityItem) Vertex() Vertex {
+	return i.vertex
 }
 
 type MinPriorityQueue []*VertexPriorityItem
