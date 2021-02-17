@@ -52,10 +52,6 @@ func (n *baseBSTNode) String() string {
 	return fmt.Sprintf("\t%v\n[%v\t%v]", n.key, n.left, n.right)
 }
 
-func (n *baseBSTNode) Value() interface{} {
-	return n.key
-}
-
 func (n *baseBSTNode) Minimum() BSTNode {
 	var min BSTNode = n
 	for min.Left() != nil && !min.Left().Nil() {

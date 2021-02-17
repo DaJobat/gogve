@@ -93,3 +93,6 @@ func (p *Parabola) getParabolaPointDY(px float64) (y float64) {
 	y = ((b + k) / 2) + (math.Pow((px-a), 2) / (2 * (b - k)))
 	return y
 }
+
+func (p0 *Parabola) IntersectionPoints(p1 *Parabola) {
+}

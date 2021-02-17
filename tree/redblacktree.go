@@ -24,71 +24,106 @@ const (
 	rbTreeColorBlack
 )
 
-type RBTreeNode struct {
-	color  rbTreeColor
+type RBTreeNode interface {
+	BSTNode
+	rbParent() RBTreeNode
+	rbLeft() RBTreeNode
+	rbRight() RBTreeNode
+	Color() rbTreeColor
+	setColor(rbTreeColor)
+}
+
+type baseRBNode struct {
 	key    util.Comparable
-	parent *RBTreeNode
-	left   *RBTreeNode
-	right  *RBTreeNode
+	parent RBTreeNode
+	left   RBTreeNode
+	right  RBTreeNode
+	color  rbTreeColor
 }
 
-func NewRBTreeNode(key util.Comparable) BSTNode {
-	tn := RBTreeNode{
-		key: key,
-	}
-	return &tn
-}
-
-func (r *RBTreeNode) String() string {
-	if r.Nil() {
+func (r *baseRBNode) String() string {
+	if r == nil || r.Nil() {
 		return "Nil"
 	}
 
-	if r.Left().Nil() && r.Right().Nil() {
-		return fmt.Sprintf("Node: %v, %v[LEAF]", r.key, r.color)
+	if (r.Left() == nil || r.Left().Nil()) && (r.Right() == nil || r.Right().Nil()) {
+		return fmt.Sprintf("Node: %v[LEAF]", r.color)
 	}
 
-	return fmt.Sprintf("Node: %v, %v \n\t[L{ %v },\tR{ %v }]", r.key, r.color, r.left, r.right)
+	return fmt.Sprintf("Node:  %v \n\t[L{ %v },\tR{ %v }]", r.color, r.left, r.right)
 }
 
-func (r *RBTreeNode) Key() util.Comparable {
+func (r *baseRBNode) Key() util.Comparable {
 	return r.key
 }
 
-func (r *RBTreeNode) Parent() BSTNode {
+func (r *baseRBNode) Color() rbTreeColor {
+	return r.color
+}
+
+func (r *baseRBNode) setColor(c rbTreeColor) {
+	r.color = c
+}
+
+func (r *baseRBNode) Parent() BSTNode {
 	if r.parent == nil { //We don't want to return nil for the nil node, so don't use .Nil()
 		return nil
 	}
 	return r.parent
 }
 
-func (r *RBTreeNode) SetParent(node BSTNode) {
-	r.parent = node.(*RBTreeNode)
+func (r *baseRBNode) rbParent() RBTreeNode {
+	if r.parent == nil { //We don't want to return nil for the nil node, so don't use .Nil()
+		return nil
+	}
+	return r.parent
 }
 
-func (r *RBTreeNode) Left() BSTNode {
+func (r *baseRBNode) SetParent(node BSTNode) {
+	if node == nil {
+		r.parent = nil
+	} else {
+		r.parent = node.(RBTreeNode)
+	}
+}
+
+func (r *baseRBNode) Left() BSTNode {
 	if r.left == nil { //We don't want to return nil for the nil node, so don't use .Nil()
 		return nil
 	}
 	return r.left
 }
 
-func (r *RBTreeNode) SetLeft(node BSTNode) {
-	r.left = node.(*RBTreeNode)
+func (r *baseRBNode) rbLeft() RBTreeNode {
+	if r.left == nil { //We don't want to return nil for the nil node, so don't use .Nil()
+		return nil
+	}
+	return r.left
 }
 
-func (r *RBTreeNode) Right() BSTNode {
+func (r *baseRBNode) SetLeft(node BSTNode) {
+	r.left = node.(RBTreeNode)
+}
+
+func (r *baseRBNode) Right() BSTNode {
 	if r.right == nil { //We don't want to return nil for the nil node, so don't use .Nil()
 		return nil
 	}
 	return r.right
 }
 
-func (r *RBTreeNode) SetRight(node BSTNode) {
-	r.right = node.(*RBTreeNode)
+func (r *baseRBNode) SetRight(node BSTNode) {
+	r.right = node.(RBTreeNode)
 }
 
-func (r *RBTreeNode) Minimum() BSTNode {
+func (r *baseRBNode) rbRight() RBTreeNode {
+	if r.right == nil { //We don't want to return nil for the nil node, so don't use .Nil()
+		return nil
+	}
+	return r.right
+}
+
+func (r *baseRBNode) Minimum() BSTNode {
 	var min BSTNode = r
 	for !min.Left().Nil() {
 		min = min.Left()
@@ -97,7 +132,7 @@ func (r *RBTreeNode) Minimum() BSTNode {
 
 }
 
-func (r *RBTreeNode) Maximum() BSTNode {
+func (r *baseRBNode) Maximum() BSTNode {
 	var max BSTNode = r
 	for !max.Right().Nil() {
 		max = max.Right()
@@ -105,7 +140,7 @@ func (r *RBTreeNode) Maximum() BSTNode {
 	return max
 }
 
-func (r *RBTreeNode) Predecessor() BSTNode {
+func (r *baseRBNode) Predecessor() BSTNode {
 	var node BSTNode = r
 	if !node.Left().Nil() {
 		return node.Left().Maximum()
@@ -120,7 +155,7 @@ func (r *RBTreeNode) Predecessor() BSTNode {
 	return predecessor
 }
 
-func (r *RBTreeNode) Successor() BSTNode {
+func (r *baseRBNode) Successor() BSTNode {
 	var node BSTNode = r
 	if !node.Right().Nil() {
 		return node.Right().Minimum()
@@ -134,41 +169,41 @@ func (r *RBTreeNode) Successor() BSTNode {
 	return successor
 }
 
-func (r *RBTreeNode) Nil() bool {
+func (r *baseRBNode) Nil() bool {
 	return r == nil || r == rbNilNode
 }
 
-type RBTree struct {
-	rootNode *RBTreeNode
+func NewRBTreeNode(key util.Comparable) RBTreeNode {
+	tn := baseRBNode{
+		key: key,
+	}
+	return &tn
 }
 
-var rbNilNode = &RBTreeNode{
-	key:    NilComparable{},
-	color:  rbTreeColorBlack,
-	left:   nil,
-	right:  nil,
-	parent: nil,
+var rbNilNode RBTreeNode = func() RBTreeNode {
+	tn := NewRBTreeNode(&NilComparable{})
+	tn.setColor(rbTreeColorBlack)
+	return tn
+}()
+
+type RBTree struct {
+	rootNode RBTreeNode
 }
 
 type NilComparable struct{}
 
-func (nc NilComparable) Compare(util.Comparable) util.ComparableResult {
+func (nc *NilComparable) Compare(util.Comparable) util.ComparableResult {
 	return util.ComparableLess
 }
 
 func NewRBTree() BinarySearchTree {
-	rbt := &RBTree{}
-	rbt.rootNode = rbNilNode
+	rbt := RBTree{
+		rootNode: rbNilNode,
+	}
 
-	return rbt
+	return &rbt
 }
 
-/*
-func (r *RBTree) String() string {
-	b := &strings.Builder{}
-	return b.String()
-}
-*/
 func (r *RBTree) Search(key util.Comparable) BSTNode {
 	n, _ := BSTNodeSearch(r.rootNode, key)
 	if n.Nil() {
@@ -182,8 +217,8 @@ func (r *RBTree) Root() BSTNode {
 	return r.rootNode
 }
 
-func (r *RBTree) leftRotate(node *RBTreeNode) {
-	oldRight := node.right
+func (r *RBTree) leftRotate(node RBTreeNode) {
+	oldRight := node.rbRight()
 
 	//Make the old right node's left subtree our right subtree
 	node.SetRight(oldRight.Left())
@@ -206,11 +241,11 @@ func (r *RBTree) leftRotate(node *RBTreeNode) {
 	node.SetParent(oldRight)
 }
 
-func (r *RBTree) rightRotate(node *RBTreeNode) {
-	oldLeft := node.left
+func (r *RBTree) rightRotate(node RBTreeNode) {
+	oldLeft := node.rbLeft()
 
 	//Make the old left node's right subtree our left subtree
-	node.SetLeft(oldLeft.right)
+	node.SetLeft(oldLeft.Right())
 	if !oldLeft.Right().Nil() {
 		oldLeft.Right().SetParent(node)
 	}
@@ -231,28 +266,31 @@ func (r *RBTree) rightRotate(node *RBTreeNode) {
 }
 
 func (r *RBTree) Insert(key util.Comparable) BSTNode {
-	node := NewRBTreeNode(key)
+	node, ok := key.(RBTreeNode)
+	if !ok { //if the key isn't already a treenode, wrap it in one
+		node = NewRBTreeNode(key)
+	}
 	r.insert(node)
 	return node
 }
 
-func (r *RBTree) insert(node BSTNode) {
-	insertNode := node.(*RBTreeNode)
-	y := rbNilNode
+func (r *RBTree) insert(node RBTreeNode) {
+	insertNode := node
+	var y RBTreeNode = rbNilNode
 	x := r.rootNode
 
-	for x != rbNilNode {
+	for !x.Nil() {
 		y = x
 		if insertNode.Key().Compare(x.Key()) == util.ComparableLess {
-			x = x.left
+			x = x.rbLeft()
 		} else {
-			x = x.right
+			x = x.rbRight()
 		}
 	}
 
 	insertNode.SetParent(y)
 
-	if y == rbNilNode { //Node is at the root of the tree
+	if y.Nil() { //Node is at the root of the tree
 		r.rootNode = insertNode
 	} else if insertNode.Key().Compare(y.Key()) == util.ComparableLess {
 		y.SetLeft(insertNode)
@@ -262,63 +300,57 @@ func (r *RBTree) insert(node BSTNode) {
 
 	insertNode.SetLeft(rbNilNode)
 	insertNode.SetRight(rbNilNode)
-	insertNode.color = rbTreeColorRed
-	fmt.Printf("Tree PostInsert\n\n %v \n\n", r)
+	insertNode.setColor(rbTreeColorRed)
 	r.insertFixup(insertNode)
 }
 
-func (r *RBTree) insertFixup(node *RBTreeNode) {
-	for node.parent.color == rbTreeColorRed {
-		fmt.Println("MY PARENT IS RED")
-		if node.parent == node.parent.parent.left {
-			fmt.Println("MY PARENT IS LEFT")
-			if node.parent.parent.right.color == rbTreeColorRed {
-				fmt.Println("MY PARPAR RIGHT IS RED")
-				node.parent.color = rbTreeColorBlack
-				node.parent.parent.right.color = rbTreeColorBlack
-				node.parent.parent.color = rbTreeColorRed
-				node = node.parent.parent
-			} else {
-				fmt.Println("MY PARPAR RIGHT IS BLACK")
-				if node == node.parent.right {
-					fmt.Println("LEFT ROTATE MY PARENT")
-					node = node.parent
+func (r *RBTree) insertFixup(node RBTreeNode) {
+
+	for node.rbParent().Color() == rbTreeColorRed {
+
+		if node.rbParent() == node.rbParent().rbParent().Left() { //parent is left
+
+			if node.rbParent().rbParent().rbRight().Color() == rbTreeColorRed {
+				node.rbParent().setColor(rbTreeColorBlack)
+				node.rbParent().rbParent().rbRight().setColor(rbTreeColorBlack)
+				node.rbParent().rbParent().setColor(rbTreeColorRed)
+				node = node.rbParent().rbParent()
+			} else { //grandparentRight is black
+
+				if node == node.Parent().Right() { //i am right hand side
+					node = node.rbParent()
 					r.leftRotate(node)
 				}
-				node.parent.color = rbTreeColorBlack
-				node.parent.parent.color = rbTreeColorRed
-				fmt.Println("RIGHT ROTATE MY PAR PAR PAR")
-				r.rightRotate(node.parent.parent)
+
+				node.rbParent().setColor(rbTreeColorBlack)
+				node.rbParent().rbParent().setColor(rbTreeColorRed)
+				r.rightRotate(node.rbParent().rbParent())
 			}
-		} else { //do the opposite of above
-			fmt.Println("MY PARENT IS RIGHT")
-			if node.parent.parent.left.color == rbTreeColorRed {
-				fmt.Println("MY PARPAR LEFT IS RED")
-				node.parent.color = rbTreeColorBlack
-				node.parent.parent.left.color = rbTreeColorRed
-				node.parent.parent.color = rbTreeColorRed
-				node = node.parent.parent
+
+		} else { //parent is right
+			if node.rbParent().rbParent().rbLeft().Color() == rbTreeColorRed {
+				node.rbParent().setColor(rbTreeColorBlack)
+				node.rbParent().rbParent().rbLeft().setColor(rbTreeColorBlack)
+				node.rbParent().rbParent().setColor(rbTreeColorRed)
+				node = node.rbParent().rbParent()
 			} else {
-				fmt.Println("MY PAR LEFT IS BLACK")
-				if node == node.parent.left {
-					fmt.Println("RIGHT ROTATE")
-					node = node.parent
+				if node == node.Parent().Left() {
+					node = node.rbParent()
 					r.rightRotate(node)
 				}
 
-				node.parent.color = rbTreeColorBlack
-				node.parent.parent.color = rbTreeColorRed
-				fmt.Println("LEFT ROTATE")
-				r.leftRotate(node.parent.parent)
+				node.rbParent().setColor(rbTreeColorBlack)
+				node.rbParent().rbParent().setColor(rbTreeColorRed)
+				r.leftRotate(node.rbParent().rbParent())
 			}
 		}
 	}
-	r.rootNode.color = rbTreeColorBlack
+	r.rootNode.setColor(rbTreeColorBlack)
 }
 
 func (r *RBTree) Transplant(u, v BSTNode) {
 	if u.Parent() == rbNilNode {
-		r.rootNode = v.(*RBTreeNode)
+		r.rootNode = v.(*baseRBNode)
 	} else if u == u.Parent().Left() {
 		u.Parent().SetLeft(v)
 	} else {
@@ -328,104 +360,120 @@ func (r *RBTree) Transplant(u, v BSTNode) {
 	v.SetParent(u.Parent())
 }
 
-func (r *RBTree) Delete(node BSTNode) {
-	nodeBeingRemoved := node.(*RBTreeNode)
-	y := node.(*RBTreeNode)
+//Replace transplants a node in the tree, but grafts the children of the
+//transplanted node into the new node
+func (r *RBTree) Replace(u, v BSTNode) {
+	r.Transplant(u, v)
+	v.SetLeft(u.Left())
+	v.SetRight(u.Right())
 
-	yOrigColor := y.color
-	var nodeAtOriginalY *RBTreeNode
+	if v.Left() != nil && !v.Left().Nil() {
+		v.Left().SetParent(v)
+	}
+	if v.Right() != nil && !v.Right().Nil() {
+		v.Right().SetParent(v)
+	}
+	v.(RBTreeNode).setColor(u.(RBTreeNode).Color())
+}
+
+func (r *RBTree) Delete(node BSTNode) {
+	nodeBeingRemoved := node.(RBTreeNode)
+	y := node.(RBTreeNode)
+
+	yOrigColor := y.Color()
+	var nodeAtOriginalY RBTreeNode
 
 	if nodeBeingRemoved.Left() == rbNilNode {
 		// if the node being removed has no left child,
 		// overwrite the node with its entire right hand subtree
-		nodeAtOriginalY = nodeBeingRemoved.right
+		nodeAtOriginalY = nodeBeingRemoved.rbRight()
 		r.Transplant(nodeBeingRemoved, nodeBeingRemoved.Right())
-	} else if nodeBeingRemoved.right == rbNilNode {
+	} else if nodeBeingRemoved.Right() == rbNilNode {
 		// if the node being removed has no right child,
 		// overwrite the node with its entire left hand subtree
-		nodeAtOriginalY = nodeBeingRemoved.left
+		nodeAtOriginalY = nodeBeingRemoved.rbLeft()
 		r.Transplant(nodeBeingRemoved, nodeBeingRemoved.Left())
 	} else {
 		//the node to be removed has two children
-		y = nodeBeingRemoved.Right().Minimum().(*RBTreeNode)
-		yOrigColor = y.color
-		nodeAtOriginalY = y.right
+		y = nodeBeingRemoved.Right().Minimum().(RBTreeNode)
+		yOrigColor = y.Color()
+		nodeAtOriginalY = y.rbRight()
 
 		if y.Parent() == nodeBeingRemoved {
 			nodeAtOriginalY.SetParent(y)
 		} else {
-			r.Transplant(y, y.right)
-			y.right = nodeBeingRemoved.right
-			y.right.SetParent(y)
+			r.Transplant(y, y.Right())
+			y.SetRight(nodeBeingRemoved.Right())
+			y.Right().SetParent(y)
 		}
 
 		r.Transplant(nodeBeingRemoved, y)
-		y.left = nodeBeingRemoved.left
-		y.left.SetParent(y)
-		y.color = nodeBeingRemoved.color
+		y.SetLeft(nodeBeingRemoved.Left())
+		y.Left().SetParent(y)
+		y.setColor(nodeBeingRemoved.Color())
 	}
 
 	if yOrigColor == rbTreeColorBlack {
 		r.deleteFixup(nodeAtOriginalY)
 	}
 
-	rbNilNode.parent = nil
+	rbNilNode.SetParent(nil)
 }
 
-func (r *RBTree) deleteFixup(node *RBTreeNode) {
-	for node != r.rootNode && node.color == rbTreeColorBlack {
-		if node == node.parent.Left() {
-			w := node.parent.right
-			if w.color == rbTreeColorRed {
-				w.color = rbTreeColorBlack
-				node.parent.color = rbTreeColorRed
-				r.leftRotate(node.parent)
-				w = node.parent.right
+func (r *RBTree) deleteFixup(node RBTreeNode) {
+	for node != r.rootNode && node.Color() == rbTreeColorBlack {
+		if node == node.Parent().Left() {
+			w := node.rbParent().rbRight()
+			if w.Color() == rbTreeColorRed {
+				w.setColor(rbTreeColorBlack)
+				node.rbParent().setColor(rbTreeColorRed)
+				r.leftRotate(node.rbParent())
+				w = node.rbParent().rbRight()
 			}
 			//FIXME: Added in this nilnode check for an edge case when the tree has a black root 2 with left child 1 red and right child 3 black, causing w here to be the nilnode and thefore no left. mirrored below
-			if w == rbNilNode || (w.left.color == rbTreeColorBlack && w.right.color == rbTreeColorBlack) {
-				w.color = rbTreeColorRed
-				node = node.parent
+			if w == rbNilNode || (w.rbLeft().Color() == rbTreeColorBlack && w.rbRight().Color() == rbTreeColorBlack) {
+				w.setColor(rbTreeColorRed)
+				node = node.rbParent()
 			} else {
-				if w.right.color == rbTreeColorBlack {
-					w.left.color = rbTreeColorBlack
-					w.color = rbTreeColorRed
+				if w.rbRight().Color() == rbTreeColorBlack {
+					w.rbLeft().setColor(rbTreeColorBlack)
+					w.setColor(rbTreeColorRed)
 					r.rightRotate(w)
-					w = node.parent.right
+					w = node.rbParent().rbRight()
 				}
-				w.color = node.parent.color
-				node.parent.color = rbTreeColorBlack
-				w.right.color = rbTreeColorBlack
-				r.leftRotate(node.parent)
+				w.setColor(node.rbParent().Color())
+				node.rbParent().setColor(rbTreeColorBlack)
+				w.rbRight().setColor(rbTreeColorBlack)
+				r.leftRotate(node.rbParent())
 				node = r.rootNode
 			}
 		} else {
-			w := node.parent.left
-			if w.color == rbTreeColorRed {
-				w.color = rbTreeColorBlack
-				node.parent.color = rbTreeColorRed
-				r.rightRotate(node.parent)
-				w = node.parent.left
+			w := node.rbParent().rbLeft()
+			if w.Color() == rbTreeColorRed {
+				w.setColor(rbTreeColorBlack)
+				node.rbParent().setColor(rbTreeColorRed)
+				r.rightRotate(node.rbParent())
+				w = node.rbParent().rbLeft()
 			}
-			if w == rbNilNode || (w.right.color == rbTreeColorBlack && w.left.color == rbTreeColorBlack) {
-				w.color = rbTreeColorRed
-				node = node.parent
+			if w == rbNilNode || (w.rbRight().Color() == rbTreeColorBlack && w.rbLeft().Color() == rbTreeColorBlack) {
+				w.setColor(rbTreeColorRed)
+				node = node.rbParent()
 			} else {
-				if w.left.color == rbTreeColorBlack {
-					w.right.color = rbTreeColorBlack
-					w.color = rbTreeColorRed
+				if w.rbLeft().Color() == rbTreeColorBlack {
+					w.rbRight().setColor(rbTreeColorBlack)
+					w.setColor(rbTreeColorRed)
 					r.leftRotate(w)
-					w = node.parent.left
+					w = node.rbParent().rbLeft()
 				}
-				w.color = node.parent.color
-				node.parent.color = rbTreeColorBlack
-				w.left.color = rbTreeColorBlack
-				r.rightRotate(node.parent)
+				w.setColor(node.rbParent().Color())
+				node.rbParent().setColor(rbTreeColorBlack)
+				w.rbLeft().setColor(rbTreeColorBlack)
+				r.rightRotate(node.rbParent())
 				node = r.rootNode
 			}
 		}
 	}
-	node.color = rbTreeColorBlack
+	node.setColor(rbTreeColorBlack)
 }
 
 func (r *RBTree) Length() int {

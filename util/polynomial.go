@@ -1,6 +1,7 @@
 package util
 
 import (
+	"fmt"
 	"math"
 )
 
@@ -34,15 +35,15 @@ func QuadraticIntersection(p Polynomial, r Polynomial) (p0, p1 FVec) {
 
 	np := NewRPolynomial(diffCoeffs, big.Degree())
 
-	x1, x2 := Quadratic(np)
+	x1, x2 := QuadraticRoots(np)
 	y1, y2 := small.Calculate(x1), small.Calculate(x2)
 
 	return NewFVec(2, x1, y1), NewFVec(2, x2, y2)
 }
 
-func Quadratic(p Polynomial) (result1, result2 float64) {
+func QuadraticRoots(p Polynomial) (result1, result2 float64) {
 	if p.Degree() > 3 {
-		panic("this only works for quadratic or lower polynomials")
+		panic(fmt.Sprintf("this only works for quadratic or lower polynomials. This poly is degree %i", p.Degree()))
 	}
 
 	var tc []float64 //temp coefficient slice so we can pad it up
@@ -56,10 +57,14 @@ func Quadratic(p Polynomial) (result1, result2 float64) {
 		tc = p.Coefficients()
 	}
 
-	divBy := tc[2] * 2
-	rootPart := math.Sqrt((tc[1] * tc[1]) - (4 * tc[2] * tc[0]))
+	a := tc[0]
+	b := tc[1]
+	c := tc[2]
 
-	return ((-tc[1] + rootPart) / divBy), ((-tc[1] - rootPart) / divBy)
+	divBy := a * 2
+	rootPart := math.Sqrt((b * b) - (4 * a * c))
+
+	return ((-b + rootPart) / divBy), ((-b - rootPart) / divBy)
 }
 
 //ZPolynomial represents a polynomial where all coefficients are in Z, the set of integers
@@ -102,6 +107,15 @@ func NewRPolynomial(sparseCoeffs SparseRPCoefficients, degree int) *RPolynomial 
 	}
 
 	return &p
+}
+
+func NewQuadratic(a, b, c float64) Polynomial {
+	q := RPolynomial{
+		degree: 3,
+		coeffs: []float64{c, b, a},
+	}
+
+	return &q
 }
 
 func (rp *RPolynomial) Calculate(x float64) (y float64) {

@@ -8,6 +8,10 @@ import (
 	"github.com/DaJobat/gogve/util"
 )
 
+type SweeplineState interface {
+	CurrentSweepline() float64
+}
+
 type LineSegment struct {
 	startPoint util.FVec
 	endPoint   util.FVec
@@ -45,7 +49,6 @@ func NewLineSegment(startPoint, endPoint util.FVec) *LineSegment {
 	} else {
 		cy = endPoint.Y() - startPoint.Y()
 	}
-	//fmt.Printf("cx %v, cy %v\n", cx, cy)
 	if cx != 0 {
 		ls.gradient = cy / cx
 		if ls.gradient == 0 {
@@ -53,7 +56,6 @@ func NewLineSegment(startPoint, endPoint util.FVec) *LineSegment {
 		} else {
 			ls.yIntercept = startPoint.Y() - (ls.gradient * startPoint.X())
 		}
-		//fmt.Printf("grad: %v spy %v, %v\n", ls.gradient, ls.startPoint.Y(), (ls.gradient * startPoint.X()))
 	} else {
 		//Edge case for vertical lines
 		ls.gradient = math.Inf(1)
@@ -114,8 +116,6 @@ func (l0 *LineSegment) IntersectionPoint(l1 *LineSegment) util.FVec {
 	y1 := (l1.endPoint.Y() - l1.startPoint.Y())   //difference between l1 start and end X
 	yi := (l1.startPoint.Y() - l0.startPoint.Y()) // difference between start point X
 
-	//fmt.Printf("x0,y0:[%v, %v], x1,y1: [%v, %v], xi, yi: [%v, %v]\n", x0, y0, x1, y1, xi, yi)
-
 	//s(x0) - t(x1) = xi
 	//s(y0) - t(y1) = yi
 	//s = (t(y1) + yi) / y0
@@ -125,13 +125,11 @@ func (l0 *LineSegment) IntersectionPoint(l1 *LineSegment) util.FVec {
 	t = tTop / tBottom
 	s = ((t * y1) + yi) / y0
 
-	//fmt.Printf("s: %v, t: %v\n", s, t)
-
 	return util.NewFVec2(l0.startPoint.X()+x0*s, l0.startPoint.Y()+y0*s)
 }
 
 func direction(p0, p1, p2 util.FVec) float64 {
-	return util.NewFVec2(p2.X()-p0.X(), p2.Y()-p0.Y()).Cross(
+	return util.Vec2CrossProduct(util.NewFVec2(p2.X()-p0.X(), p2.Y()-p0.Y()),
 		util.NewFVec2(p1.X()-p0.X(), p1.Y()-p0.Y())) //p1 - p0
 }
 
@@ -177,14 +175,13 @@ func LineSegmentIntersection(lines []*LineSegment) *LSIState {
 		lsiIterate(lsi)
 	}
 
-	sweeplineXPoint = 0
 	return lsi
 }
 
 func lsiIterate(lsi *LSIState) error {
 	currentNode := lsi.eventQueue.Root().Minimum()
 	nextPointEntry := currentNode.Key().(*eventPointEntry)
-	lsi.nextPoint = nextPointEntry.eventPoint
+	lsi.nextPoint = nextPointEntry.FVec
 
 	if lsi.nextPoint.X() > lsi.maxSweeplineX {
 		return fmt.Errorf("reached max X")
@@ -194,7 +191,7 @@ func lsiIterate(lsi *LSIState) error {
 	delete(lsi.futurePoints, nextPointEntry)
 	lsi.previousPoints = append(lsi.previousPoints, lsi.currentPoint)
 	lsi.currentPoint = lsi.nextPoint
-	sweeplineXPoint = lsi.currentPoint.X()
+	lsi.currentSweepline = lsi.currentPoint.X()
 
 	if len(lsi.startPoints[lsi.currentPoint])+len(lsi.endPoints[lsi.currentPoint])+len(lsi.containedPoints[lsi.currentPoint]) > 1 {
 		//more than one line segment starts, ends or is on this point therefore this is an intersection point
@@ -204,41 +201,30 @@ func lsiIterate(lsi *LSIState) error {
 
 	for _, line := range append(lsi.endPoints[lsi.currentPoint], lsi.containedPoints[lsi.currentPoint]...) {
 		//Remove all the lines that are ending or are contained in this point back to line status
-		//fmt.Printf("removing %v\n", lineStatusNodes[line])
-		//fmt.Printf("\n\nFull tree %v\n\n", lineStatus)
 		lsi.lineStatus.Delete(lsi.lineStatusNodes[line])
 		delete(lsi.lineStatusNodes, line)
 	}
 
 	for _, line := range append(lsi.startPoints[lsi.currentPoint], lsi.containedPoints[lsi.currentPoint]...) {
 		//add all the lines that are starting or have a point in this point back to the line status
-		//fmt.Printf("inserting %v\n", line)
-		//fmt.Printf("\n\ntree before: %v\n\n", lineStatus)
-		lsi.lineStatusNodes[line] = lsi.lineStatus.Insert(&lineStatusEntry{line})
-		//fmt.Printf("\n\ntree after: %v\n\n", lineStatus)
+		lsi.lineStatusNodes[line] = lsi.lineStatus.Insert(newLineStatusEntry(line, lsi))
 	}
 
 	// nothing starts or continues through this point, so now we check if there are new events from the above and below lines
 	// that have now become neighbours
 	if len(lsi.startPoints[lsi.currentPoint])+len(lsi.containedPoints[lsi.currentPoint]) == 0 {
-		//fmt.Printf("nothing starts or continues here\n")
-		//fmt.Printf("TREE BEFORE NODE: \n\t%v\n", lineStatus.Root())
-		cpNode := lsi.lineStatus.Insert(&eventPointEntry{lsi.currentPoint})
-		//fmt.Printf("TREE AFTER NODE: \n\t%v\n", lineStatus.Root())
+		cpNode := lsi.lineStatus.Insert(newEventPointEntry(lsi.currentPoint, lsi))
 		anNode := cpNode.Successor()
 		aboveNeighbor, ok := anNode.Key().(*lineStatusEntry)
 		if ok {
 			bnNode := cpNode.Predecessor()
 			belowNeighbor, ok := bnNode.Key().(*lineStatusEntry)
 			if ok {
-				//fmt.Printf("FindEvent between \n\tbelow: %v\n\tabove: %v\n", belowNeighbor, aboveNeighbor)
 				findEvent(lsi, belowNeighbor.lineSegment, aboveNeighbor.lineSegment, lsi.currentPoint)
 			} else {
-				//fmt.Printf("bad below neighbor node\n\t\t%v\n", bnNode)
 				panic("")
 			}
 		} else {
-			//fmt.Printf("bad above neighbor node\n\t\t%v\n", anNode)
 			panic("")
 		}
 		lsi.lineStatus.Delete(cpNode)
@@ -246,30 +232,22 @@ func lsiIterate(lsi *LSIState) error {
 		var bottomSeg, topSeg *LineSegment
 
 		for _, lineSegment := range append(lsi.startPoints[lsi.currentPoint], lsi.containedPoints[lsi.currentPoint]...) {
-			if bottomSeg == nil || compareLines(lineSegment, bottomSeg, sweeplineXPoint+compPointFuzz) == util.ComparableLess {
+			if bottomSeg == nil || compareLines(lineSegment, bottomSeg, lsi.currentSweepline+compPointFuzz) == util.ComparableLess {
 				bottomSeg = lineSegment
 			}
-			if topSeg == nil || compareLines(lineSegment, topSeg, sweeplineXPoint+compPointFuzz) == util.ComparableGreater {
+			if topSeg == nil || compareLines(lineSegment, topSeg, lsi.currentSweepline+compPointFuzz) == util.ComparableGreater {
 				topSeg = lineSegment
 			}
 		}
 
-		//fmt.Println(lineYPoint(bottomSeg, sweeplineXPoint))
-		//fmt.Println(lineYPoint(topSeg, sweeplineXPoint))
-		//bsp := lsi.lineStatus.Search(bottomSeg).Predecessor()
 		bsp := lsi.lineStatusNodes[bottomSeg].Predecessor()
 		if bsp != nil && !bsp.Nil() {
-			//fmt.Printf("New Findevent Below\nLine immediately below point: %v\nLine below that line: %v\n\n",
-			//bottomSeg, bsp.Key().(*lineStatusEntry).lineSegment)
 			findEvent(lsi, bsp.Key().(*lineStatusEntry).lineSegment,
 				bottomSeg, lsi.currentPoint)
 		}
 
-		//tsp := lsi.lineStatus.Search(topSeg).Successor()
 		tsp := lsi.lineStatusNodes[topSeg].Successor()
 		if tsp != nil && !tsp.Nil() {
-			//fmt.Printf("New Findevent Above\nLine immediately above point: %v\nLine above that line: %v\n\n",
-			//topSeg, tsp.Key().(*lineStatusEntry).lineSegment)
 			findEvent(lsi, tsp.Key().(*lineStatusEntry).lineSegment,
 				topSeg, lsi.currentPoint)
 		}
@@ -278,6 +256,7 @@ func lsiIterate(lsi *LSIState) error {
 }
 
 type LSIState struct {
+	currentSweepline   float64
 	maxSweeplineX      float64
 	lines              []*LineSegment
 	intersectionPoints PointSegments
@@ -303,8 +282,9 @@ func NewLSIState(lines []*LineSegment) *LSIState {
 }
 
 func (s *LSIState) Clear() {
+	s.currentSweepline = 0
 	s.intersectionPoints = make(PointSegments)
-	s.lineStatus = initLineStatus()
+	s.initLineStatus()
 	s.lineStatusNodes = make(map[*LineSegment]tree.BSTNode)
 	s.containedPoints = make(PointSegments)
 	s.previousPoints = make([]util.FVec, 0, 10)
@@ -314,8 +294,16 @@ func (s *LSIState) Clear() {
 	s.initEventQueue()
 }
 
+func (s *LSIState) Lines() []*LineSegment {
+	return s.lines
+}
+
 func (s *LSIState) SetMaxSweeplineX(x float64) {
 	s.maxSweeplineX = x
+}
+
+func (s *LSIState) CurrentSweepline() float64 {
+	return s.currentSweepline
 }
 
 func (s *LSIState) PreviousPoints() []util.FVec {
@@ -366,11 +354,7 @@ func (s *LSIState) Run() {
 }
 
 func (s *LSIState) initEventQueue() {
-	if useRBTree {
-		s.eventQueue = tree.NewRBTree()
-	} else {
-		s.eventQueue = tree.NewBinarySearchTree()
-	}
+	s.eventQueue = tree.NewRBTree()
 	s.startPoints = make(PointSegments)
 	s.endPoints = make(PointSegments)
 	for _, line := range s.lines {
@@ -381,8 +365,26 @@ func (s *LSIState) initEventQueue() {
 	}
 }
 
+func (s *LSIState) initLineStatus() {
+	s.lineStatus = tree.NewRBTree()
+
+	nlineEntry := newLineStatusEntry(negativeInfinityLine, s)
+	s.lineStatus.Insert(nlineEntry)
+	plineEntry := newLineStatusEntry(positiveInfinityLine, s)
+	s.lineStatus.Insert(plineEntry)
+}
+
 type lineStatusEntry struct {
 	lineSegment *LineSegment
+	state       SweeplineState
+}
+
+func newLineStatusEntry(segment *LineSegment, state *LSIState) *lineStatusEntry {
+	lse := lineStatusEntry{
+		lineSegment: segment,
+		state:       state,
+	}
+	return &lse
 }
 
 func (le *lineStatusEntry) String() string {
@@ -398,9 +400,9 @@ func (le *lineStatusEntry) Compare(comp util.Comparable) util.ComparableResult {
 	switch le1 := comp.(type) {
 	case *lineStatusEntry:
 		//the fuzz is added so that the line is slightly in front of where the sweepline is, to break ties at intersection points
-		return compareLines(le.lineSegment, le1.lineSegment, sweeplineXPoint+compPointFuzz)
+		return compareLines(le.lineSegment, le1.lineSegment, le.state.CurrentSweepline()+compPointFuzz)
 	case *eventPointEntry:
-		return lineYPoint(le.lineSegment, sweeplineXPoint).Compare(util.ComparableFloat(le1.eventPoint.Y()))
+		return lineYPoint(le.lineSegment, le.state.CurrentSweepline()).Compare(util.ComparableFloat(le1.Y()))
 	default:
 		panic("invalid compare")
 	}
@@ -430,83 +432,62 @@ func compareLines(l0, l1 *LineSegment, xPoint float64) util.ComparableResult {
 	return lineYPoint(l0, xPoint).Compare(lineYPoint(l1, xPoint))
 }
 
-var useRBTree = false
-
 // Initialise line status with lines at minus infinity and plus infinity to act as sentinels
-func initLineStatus() tree.BinarySearchTree {
-	var lineStatus tree.BinarySearchTree
-	if useRBTree {
-		lineStatus = tree.NewRBTree()
-	} else {
-		lineStatus = tree.NewBinarySearchTree()
-	}
-
-	nlineEntry := &lineStatusEntry{
-		lineSegment: negativeInfinityLine,
-	}
-	lineStatus.Insert(nlineEntry)
-	plineEntry := &lineStatusEntry{
-		lineSegment: positiveInfinityLine,
-	}
-	lineStatus.Insert(plineEntry)
-	return lineStatus
+type eventPointEntry struct {
+	util.FVec
+	state SweeplineState
 }
 
-type eventPointEntry struct {
-	eventPoint util.FVec
+func newEventPointEntry(point util.FVec, state SweeplineState) *eventPointEntry {
+	e := eventPointEntry{
+		FVec:  point,
+		state: state,
+	}
+	return &e
 }
 
 func (epe *eventPointEntry) String() string {
-	return fmt.Sprint(epe.eventPoint)
+	return fmt.Sprint(epe.FVec)
 }
 
 func (ep *eventPointEntry) Compare(p util.Comparable) util.ComparableResult {
 	switch ep1 := p.(type) {
 	case *eventPointEntry:
-		return comparePoints(ep.eventPoint, ep1.eventPoint)
+		return comparePoints(ep, ep1)
 	case *lineStatusEntry:
-		return util.ComparableFloat(ep.eventPoint.Y()).Compare(lineYPoint(ep1.lineSegment, sweeplineXPoint))
+		return util.ComparableFloat(ep.Y()).Compare(lineYPoint(ep1.lineSegment, ep.state.CurrentSweepline()))
 	default:
-		panic("invalid compare")
+		panic(fmt.Sprintf("invalid compare with %v\n", p))
 	}
 }
 
 type PointSegments map[util.FVec][]*LineSegment
 
 func addEventPoint(lsi *LSIState, eventPoint util.FVec) {
-	epe := &eventPointEntry{
-		eventPoint: eventPoint,
-	}
+	epe := newEventPointEntry(eventPoint, lsi)
 	exists, _ := tree.BSTNodeSearch(lsi.eventQueue.Root(), epe)
 	if exists == nil || exists.Nil() {
-		//fmt.Printf("add event point\n")
 		lsi.eventQueue.Insert(epe)
 		lsi.futurePoints[epe] = eventPoint
 	}
 }
 
 func findEvent(lsi *LSIState, seg0, seg1 *LineSegment, point util.FVec) {
-	//fmt.Printf("\t%v\n\t%v\n", seg0, seg1)
 	if !seg0.Intersects(seg1) {
-		//fmt.Printf("Nothing\n\n")
 		return
 	}
-	//fmt.Printf("intersection\n")
 	intersectionPoint := seg0.IntersectionPoint(seg1)
 	if (intersectionPoint.X() > point.X()) ||
 		(intersectionPoint.X() == point.X() && intersectionPoint.Y() > point.Y()) {
-		//fmt.Printf("in front or above at %v\n", intersectionPoint)
 		//if the intersection point is in front of the line
 		//or if it's on the sweepline but above our currentpoint
 		addEventPoint(lsi, intersectionPoint) //this won't add the point if it's already there
 	}
 	if insideSegment(seg0.startPoint, seg0.endPoint, intersectionPoint) {
-		//fmt.Printf("contained 0\n")
 		found := false
 		for _, seg := range lsi.containedPoints[intersectionPoint] {
 			if seg0 == seg {
 				found = true
-				//fmt.Printf("already exists\n")
 			}
 		}
 		if !found {
@@ -514,12 +495,10 @@ func findEvent(lsi *LSIState, seg0, seg1 *LineSegment, point util.FVec) {
 		}
 	}
 	if insideSegment(seg1.startPoint, seg1.endPoint, intersectionPoint) {
-		//fmt.Printf("contained 1\n")
 		found := false
 		for _, seg := range lsi.containedPoints[intersectionPoint] {
 			if seg1 == seg {
 				found = true
-				//fmt.Printf("already exists\n")
 			}
 		}
 		if !found {

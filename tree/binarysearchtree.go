@@ -7,7 +7,8 @@ import (
 type BinarySearchTree interface {
 	Search(key util.Comparable) BSTNode
 	Root() BSTNode
-	Insert(util.Comparable) BSTNode
+	Insert(util.Comparable) BSTNode //If this finds that the comparable is a BSTNode it'll use it
+	//otherwise, it'll wrap it in a BSTNode
 	Delete(BSTNode)
 	Length() int
 }
@@ -31,7 +32,7 @@ func BSTNodeSearch(node BSTNode, key util.Comparable) (cNode, preNode BSTNode) {
 	cNode = node
 	preNode = nil
 
-	for (cNode != nil && !cNode.Nil()) && cNode.Key().Compare(key) != util.ComparableEqual {
+	for cNode != nil && !cNode.Nil() && cNode.Key().Compare(key) != util.ComparableEqual {
 		preNode = cNode
 		if key.Compare(cNode.Key()) == util.ComparableLess {
 			cNode = cNode.Left()

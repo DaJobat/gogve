@@ -31,6 +31,7 @@ func (a *DijkstraAttribute) SetShortestEstimateFromSource(est float32) {
 	a.ShortestEstimate = est
 }
 
+//FIXME: this doesn't work right if the weights are all zero
 func (a *DijkstraAttribute) Distance() int {
 	return int(a.ShortestEstimate)
 }
