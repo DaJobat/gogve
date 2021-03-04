@@ -57,9 +57,9 @@ func QuadraticRoots(p Polynomial) (result1, result2 float64) {
 		tc = p.Coefficients()
 	}
 
-	a := tc[0]
+	a := tc[2]
 	b := tc[1]
-	c := tc[2]
+	c := tc[0]
 
 	divBy := a * 2
 	rootPart := math.Sqrt((b * b) - (4 * a * c))
